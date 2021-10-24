@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+
+  web:
+    container_name: ${WEB_CONTAINER_NAME}
+    image: face_reg
+    build: ./project
+    command: uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 8000
+    volumes:
+      - ./project:/usr/src/app
+    ports:
+      - 8000:8000
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASS}@${DB_CONTAINER_NAME}:5432/${POSTGRES_DB}
+    depends_on:
+      - db
+
+  db:
+    container_name: ${DB_CONTAINER_NAME}
+    image: postgres:13.4
+    volumes:
+      - app-db-data:/var/lib/postgresql/data
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=${POSTGRES_DB}
+
+volumes:
+    app-db-data:
+        name: ${DB_VOLUME_NAME}

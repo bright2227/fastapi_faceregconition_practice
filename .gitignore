@@ -1,0 +1,6 @@
+.env
+.vscode
+.pytest_cache
+venv/**
+.rdb
+__pycache__/
