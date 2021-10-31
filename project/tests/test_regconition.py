@@ -27,5 +27,5 @@ def test_create(test_client, test_pic_addr):
     )
     assert response.status_code == 200
     assert not response.json()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 

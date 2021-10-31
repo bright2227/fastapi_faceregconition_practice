@@ -3,6 +3,7 @@ import os
 from shutil import copyfileobj
 from typing import Any, List
 
+import numpy as np
 from face_recognition import compare_faces, load_image_file
 from fastapi import Depends, FastAPI, File, UploadFile
 from sqlalchemy import func, select
@@ -10,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.db import check_db_alive, close_db, get_session
-from app.models import Picture, User
+from app.models import Picture, User, UserBase, PictureBase
 from app.worker import face_recog_task
-import numpy as np
 
 
 FOLDER_BASE_ADDR = os.path.abspath(os.path.dirname(__file__))
@@ -30,12 +30,12 @@ async def shutdown():
 
 @app.get("/user/",response_model=List[User])
 async def get_user(session:AsyncSession=Depends(get_session)):
-    result = await session.execute(select(User))
+    result = await session.execute(select(User.name))
     users = result.scalars().all()
-    return [User(name=user.name, id=user.id) for user in users]
+    return [user.name for user in users]
 
 
-@app.get("/user/picture/",response_model=List[Picture])
+@app.get("/user/picture/",response_model=List[PictureBase])
 async def get_pic(session:AsyncSession=Depends(get_session)):
     result = await session.execute(select(Picture))
     pictures = result.scalars().all()
@@ -43,15 +43,15 @@ async def get_pic(session:AsyncSession=Depends(get_session)):
 
 
 @app.post("/user/", response_model=User)
-async def create_user(user:User, session:AsyncSession=Depends(get_session)):
-    user = User(name=user.name)
+async def create_user(user:UserBase, session:AsyncSession=Depends(get_session)):
+    user = User.from_orm(user)
     session.add(user)
     await session.commit()
     await session.refresh(user)
     return user
 
 
-@app.post("/user/{user_id}/picture/")
+@app.post("/user/{user_id}/picture/", response_model=int)
 async def upload_pic(user_id:int, upload_file:UploadFile=File(...), session:AsyncSession=Depends(get_session)):
     stat = select(func.count(Picture.id)).where(Picture.user_id==user_id)
     res = await session.execute(stat)
@@ -73,16 +73,16 @@ async def upload_pic(user_id:int, upload_file:UploadFile=File(...), session:Asyn
     return pic.id
 
 
-@app.get("/user/{user_id}/verification/")
-async def get(user_id:int, upload_file:UploadFile=File(...), session:AsyncSession=Depends(get_session)):
+@app.get("/user/{user_id}/verification/", response_model=bool)
+async def verify_pic(user_id:int, upload_file:UploadFile=File(...), session:AsyncSession=Depends(get_session)):
     stat = select(Picture.encode).where(Picture.user_id==user_id)
     result = await session.execute(stat)
     encodes = result.scalars().all()
 
     if not encodes:
         return False
-    else:
-        encodes = np.array(encodes)
+
+    encodes = np.array(encodes)
 
     test_image = load_image_file(upload_file.file)
     task = face_recog_task.apply_async(args=[test_image])
