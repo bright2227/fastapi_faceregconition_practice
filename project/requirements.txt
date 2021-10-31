@@ -12,12 +12,12 @@ click==7.1.2
 click-didyoumean==0.3.0
 click-plugins==1.1.1
 click-repl==0.2.0
-cmake==3.21.2
-dlib==19.22.1
+dlib==19.21.0
 face-recognition==1.3.0
 face-recognition-models==0.3.0
 fastapi==0.68.1
 greenlet==1.1.1
+gunicorn==20.1.0
 h11==0.12.0
 idna==3.2
 importlib-resources==5.2.2
