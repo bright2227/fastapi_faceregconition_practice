@@ -4,3 +4,4 @@
 venv/**
 .rdb
 __pycache__/
+project/app/pics/**

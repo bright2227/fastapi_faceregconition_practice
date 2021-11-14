@@ -1,5 +1,6 @@
 import asyncio
 import time
+import uuid
 from pathlib import Path
 from shutil import copyfileobj
 from typing import Any, List
@@ -10,6 +11,7 @@ from app.models import Picture, PictureBase, User, UserBase
 from app.worker import face_recog_task
 from face_recognition import compare_faces, load_image_file
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -19,18 +21,18 @@ router = APIRouter(prefix="/user",)
 FOLDER_BASE_ADDR = Path(__file__).resolve().parent.parent
 
 
-@router.get("/",response_model=List[User])
-async def get_user(session:AsyncSession=Depends(get_session)):
-    result = await session.execute(select(User.name))
-    users = result.scalars().all()
-    return [user.name for user in users]
+@router.get("/{user_id}/",response_model=User)
+async def get_info(user_id:int, session:AsyncSession=Depends(get_session)):
+    result = await session.execute(select(User).where(User.id==user_id))
+    users = result.scalars().one()
+    return users
 
 
-@router.get("/picture/",response_model=List[PictureBase])
-async def get_pic(session:AsyncSession=Depends(get_session)):
-    result = await session.execute(select(Picture))
+@router.get("/{user_id}/picture/",response_model=List[PictureBase])
+async def get_pic(user_id:int, session:AsyncSession=Depends(get_session)):
+    result = await session.execute(select(Picture).where(Picture.user_id==user_id))
     pictures = result.scalars().all()
-    return list(pictures)
+    return pictures
 
 
 @router.post("/", response_model=User)
@@ -42,13 +44,10 @@ async def create_user(user:UserBase, session:AsyncSession=Depends(get_session)):
     return user
 
 
-@router.post("/{user_id}/picture/", response_model=int)
+@router.post("/{user_id}/picture/", response_model=PictureBase)
 async def upload_pic(user_id:int, upload_file:UploadFile=File(...), session:AsyncSession=Depends(get_session)):
-    stat = select(func.count(Picture.id)).where(Picture.user_id==user_id)
-    res = await session.execute(stat)
-    num = res.scalars().one()
-
-    file_addr = f"{FOLDER_BASE_ADDR}/pics/{user_id}_{num}.png"
+    suffix = str(uuid.uuid4())[:8]
+    file_addr = f"{FOLDER_BASE_ADDR}/pics/{user_id}_{suffix}.png"
     with open(file_addr, "wb") as buffer:
         copyfileobj(upload_file.file, buffer)
 
@@ -61,7 +60,7 @@ async def upload_pic(user_id:int, upload_file:UploadFile=File(...), session:Asyn
     session.add(pic)
     await session.commit()
     await session.refresh(pic)
-    return pic.id
+    return JSONResponse( status_code=200, content={"message": "upload success"})
 
 
 @router.get("/{user_id}/verification/", response_model=bool)
